@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .fuenteStar {
+    font-family: 'Starzoom Shavian', sans-serif;
+  }
+  .fuenteTilt {
+    font-family: 'Tilt Neon', sans-serif;
+  }
+  .text-verde {
+    color: #00c24f;
+  }
+  .bg-verde {
+    background-color: #00c24f;
+  }
+  .border-verde {
+    border-color: #00c24f;
+  }
+  .bg-gris {
+    background-color: #1e1e1e;
+  }
+}
+
+body {
+  font-family: 'Tilt Neon', sans-serif;
+  background-color: #000000;
+}
