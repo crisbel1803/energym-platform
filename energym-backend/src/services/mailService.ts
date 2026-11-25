@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const smtpHost = process.env.SMTP_HOST || 'smtp.mailtrap.io';
-const smtpPort = Number(process.env.SMTP_PORT) || 465;
+const smtpPort = Number(process.env.SMTP_PORT) || 587;
 
 console.log(`📨 Configurando SMTP con host: ${smtpHost} (puerto ${smtpPort})`);
 
