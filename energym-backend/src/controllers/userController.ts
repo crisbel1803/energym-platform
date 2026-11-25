@@ -67,18 +67,21 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
         await sendEmail(
             cleanEmail,
             'Verifica tu correo en Energym Fitness Club 🏋️‍♀️',
-            `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
-                <h2>¡Hola, ${cleanName}!</h2>
-                <p>Gracias por registrarte en <b>Energym Fitness Club</b>.</p>
-                <p>Para activar tu cuenta y poder iniciar sesión, haz clic en el siguiente enlace de verificación:</p>
-                <p style="margin: 24px 0;">
-                    <a href="${verifyLink}" style="background-color: #00c24f; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
-                        Verificar mi correo
-                    </a>
-                </p>
-                <p style="font-size: 12px; color: #666;">Si el botón no funciona, copia y pega este enlace en tu navegador:<br/>${verifyLink}</p>
-                <p style="font-size: 12px; color: #666;">Este enlace expirará en 24 horas.</p>
-            </div>`
+            `
+            <h2 style="margin: 0 0 12px; color: #111827; font-size: 20px;">¡Hola, ${cleanName}!</h2>
+            <p style="margin: 0 0 14px;">Gracias por registrarte en <strong>Energym Fitness Club</strong>.</p>
+            <p style="margin: 0 0 22px;">Para activar tu cuenta y poder iniciar sesión, haz clic en el siguiente botón:</p>
+            <div style="text-align: center; margin: 24px 0;">
+                <a href="${verifyLink}" style="background-color: #00c24f; color: #000000; padding: 12px 26px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                    Verificar mi correo
+                </a>
+            </div>
+            <p style="font-size: 12px; color: #6b7280; word-break: break-all; margin: 18px 0 8px;">
+                Si el botón no funciona, copia y pega este enlace en tu navegador:<br/>
+                <a href="${verifyLink}" style="color: #059669;">${verifyLink}</a>
+            </p>
+            <p style="font-size: 12px; color: #6b7280; margin: 0;">Este enlace expirará en 24 horas.</p>
+            `
         );
 
         res.status(201).json({

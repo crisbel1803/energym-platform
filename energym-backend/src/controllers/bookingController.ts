@@ -8,6 +8,19 @@ import { sendEmail } from '../services/mailService';
 const isFromNowOnward = (target: Date, now: Date = new Date()): boolean =>
     !Number.isNaN(target.getTime()) && target.getTime() >= now.getTime();
 
+const formatClassDateTime = (dateValue?: Date | string): string => {
+    if (!dateValue) return 'Por confirmar';
+    return new Date(dateValue).toLocaleString('es-VE', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+};
+
 function getPayPalConfig() {
     const clientId = process.env.PAYPAL_CLIENT_ID;
     const clientSecret = process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET;
@@ -289,12 +302,22 @@ export const capturePayPalOrder = async (req: AuthRequest, res: Response): Promi
 
         await newBooking.save();
 
+        const formattedSchedule = formatClassDateTime(targetClass.startTime);
+
         await sendEmail(
             currentUser.email,
             'Reserva Confirmada por PayPal en Energym 🏋️‍♀️',
-            `<h2>¡Hola, ${currentUser.name}!</h2>
-             <p>Tu pago por PayPal fue verificado y tu reserva para <b>${targetClass.title}</b> está <b>Aprobada</b>.</p>
-             <p><b>ID de transacción:</b> ${captureId}</p>`
+            `
+            <h2 style="margin: 0 0 12px; color: #111827; font-size: 20px;">¡Hola, ${currentUser.name}!</h2>
+            <p style="margin: 0 0 18px;">Tu pago con <strong>PayPal</strong> fue verificado correctamente y tu cupo está asegurado.</p>
+            <div style="background-color: #ecfdf5; border-left: 4px solid #00c24f; padding: 16px 18px; border-radius: 8px; margin: 18px 0;">
+                <p style="margin: 0 0 8px;"><strong>Clase:</strong> ${targetClass.title}</p>
+                <p style="margin: 0 0 8px;"><strong>Fecha y hora:</strong> ${formattedSchedule}</p>
+                <p style="margin: 0 0 8px;"><strong>Estado:</strong> <span style="color: #059669; font-weight: bold;">Aprobada</span></p>
+                <p style="margin: 0; font-size: 13px; color: #4b5563;"><strong>ID de transacción:</strong> ${captureId}</p>
+            </div>
+            <p style="margin: 18px 0 0; color: #4b5563;">¡Te esperamos para entrenar!</p>
+            `
         );
 
         res.status(201).json({
@@ -408,14 +431,22 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
 
         await newBooking.save();
 
+        const formattedSchedule = formatClassDateTime(targetClass.startTime);
+
         await sendEmail(
             currentUser.email,
             'Reserva Registrada en Energym 🏋️‍♀️',
-            `<h2>¡Hola, ${currentUser.name}!</h2>
-             <p>Tu reserva para <b>${targetClass.title}</b> ha sido registrada.</p>
-             <p><b>Método de pago:</b> ${paymentMethod}</p>
-             <p><b>Estado actual:</b> Pendiente</p>
-             <p>Tu comprobante está en revisión por nuestro equipo administrativo.</p>`
+            `
+            <h2 style="margin: 0 0 12px; color: #111827; font-size: 20px;">¡Hola, ${currentUser.name}!</h2>
+            <p style="margin: 0 0 18px;">Hemos registrado tu solicitud de reserva para la siguiente sesión:</p>
+            <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 18px; border-radius: 8px; margin: 18px 0;">
+                <p style="margin: 0 0 8px;"><strong>Clase:</strong> ${targetClass.title}</p>
+                <p style="margin: 0 0 8px;"><strong>Fecha y hora:</strong> ${formattedSchedule}</p>
+                <p style="margin: 0 0 8px;"><strong>Método de pago:</strong> ${paymentMethod}</p>
+                <p style="margin: 0;"><strong>Estado actual:</strong> <span style="color: #d97706; font-weight: bold;">Pendiente de aprobación</span></p>
+            </div>
+            <p style="margin: 0; font-size: 14px; color: #4b5563;">Tu comprobante está en revisión por nuestro equipo administrativo. Te avisaremos en cuanto sea validado.</p>
+            `
         );
 
         res.status(201).json({
@@ -567,15 +598,36 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
         }
 
         const userToNotify = await User.findById(booking.user);
+        const relatedClass = await GymClass.findById(booking.gymClass);
+
         if (userToNotify) {
-            const statusColor = status === 'Aprobado' ? 'green' : 'red';
+            const isApproved = status === 'Aprobado';
+            const accentColor = isApproved ? '#059669' : '#dc2626';
+            const boxBg = isApproved ? '#ecfdf5' : '#fef2f2';
+            const classTitle = relatedClass?.title || 'Clase reservada';
+            const classSchedule = formatClassDateTime(relatedClass?.startTime);
+
             await sendEmail(
                 userToNotify.email,
-                `Actualización de tu reserva en Energym - ${status}`,
-                `<h2>Hola, ${userToNotify.name}</h2>
-                 <p>El estatus de tu reserva ha cambiado a: <strong style="color: ${statusColor};">${status}</strong></p>
-                 ${adminMessage ? `<p><b>Nota del administrador:</b> ${adminMessage}</p>` : ''}
-                 <p>¡Gracias por entrenar con nosotros!</p>`
+                `Actualización de tu reserva: ${classTitle} (${status})`,
+                `
+                <h2 style="margin: 0 0 12px; color: #111827; font-size: 20px;">¡Hola, ${userToNotify.name}!</h2>
+                <p style="margin: 0 0 18px;">Tu solicitud de reserva ha sido revisada por nuestro equipo administrativo:</p>
+                <div style="background-color: ${boxBg}; border-left: 4px solid ${accentColor}; padding: 16px 18px; border-radius: 8px; margin: 18px 0;">
+                    <p style="margin: 0 0 8px;"><strong>Clase:</strong> ${classTitle}</p>
+                    <p style="margin: 0 0 8px;"><strong>Fecha y hora:</strong> ${classSchedule}</p>
+                    <p style="margin: 0;">
+                        <strong>Nuevo estatus:</strong>
+                        <span style="color: ${accentColor}; font-weight: bold;">${status}</span>
+                    </p>
+                    ${adminMessage ? `<p style="margin: 10px 0 0; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.08); font-size: 14px;"><strong>Nota del administrador:</strong> ${adminMessage}</p>` : ''}
+                </div>
+                <p style="margin: 18px 0 0;">
+                    ${isApproved
+                        ? '¡Tu cupo está confirmado! Te esperamos en el gimnasio.'
+                        : 'Si tienes dudas sobre el estado de tu reserva, comunícate con recepción o administración.'}
+                </p>
+                `
             );
         }
 

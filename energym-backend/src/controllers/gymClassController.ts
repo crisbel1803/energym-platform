@@ -13,6 +13,13 @@ interface PopulatedUser {
     email?: string;
 }
 
+interface ClassChange {
+    label: string;
+    before: string;
+    after: string;
+    summaryText: string;
+}
+
 const formatTime = (date: Date): string =>
     new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -59,8 +66,8 @@ function detectKeyChanges(
         room: string;
         instructor: string;
     }
-): string[] {
-    const changes: string[] = [];
+): ClassChange[] {
+    const changes: ClassChange[] = [];
 
     const prevStart = new Date(previous.startTime).getTime();
     const nextStart = new Date(nextData.startTime).getTime();
@@ -68,21 +75,72 @@ function detectKeyChanges(
     const nextEnd = new Date(nextData.endTime).getTime();
 
     if (prevStart !== nextStart || prevEnd !== nextEnd) {
-        changes.push(
-            `Horario: de ${formatDateTime(previous.startTime)} - ${formatTime(previous.endTime)} ` +
-            `a ${formatDateTime(nextData.startTime)} - ${formatTime(nextData.endTime)}`
-        );
+        const beforeSchedule = `${formatDateTime(previous.startTime)} - ${formatTime(previous.endTime)}`;
+        const afterSchedule = `${formatDateTime(nextData.startTime)} - ${formatTime(nextData.endTime)}`;
+        changes.push({
+            label: 'Horario / Fecha',
+            before: beforeSchedule,
+            after: afterSchedule,
+            summaryText: `Horario: de ${beforeSchedule} a ${afterSchedule}`
+        });
     }
 
     if (previous.room !== nextData.room) {
-        changes.push(`Salón: de "${previous.room}" a "${nextData.room}"`);
+        changes.push({
+            label: 'Salón',
+            before: previous.room,
+            after: nextData.room,
+            summaryText: `Salón: de "${previous.room}" a "${nextData.room}"`
+        });
     }
 
     if (previous.instructor !== nextData.instructor) {
-        changes.push(`Instructor: de "${previous.instructor}" a "${nextData.instructor}"`);
+        changes.push({
+            label: 'Instructor',
+            before: previous.instructor,
+            after: nextData.instructor,
+            summaryText: `Instructor: de "${previous.instructor}" a "${nextData.instructor}"`
+        });
     }
 
     return changes;
+}
+
+function buildChangesComparisonHtml(changes: ClassChange[]): string {
+    return changes
+        .map(
+            (change) => `
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px;">
+                <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; color: #6b7280; margin-bottom: 8px;">
+                    ${change.label}
+                </div>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td style="padding: 8px 10px; background-color: #fef2f2; border-radius: 6px; width: 47%; vertical-align: top;">
+                            <span style="display: inline-block; font-size: 10px; font-weight: bold; color: #dc2626; background-color: #fee2e2; padding: 2px 6px; border-radius: 4px; margin-bottom: 5px;">
+                                ANTES
+                            </span>
+                            <div style="font-size: 13px; color: #7f1d1d; text-decoration: line-through;">
+                                ${change.before}
+                            </div>
+                        </td>
+                        <td style="width: 6%; text-align: center; color: #9ca3af; font-weight: bold; font-size: 15px;">
+                            →
+                        </td>
+                        <td style="padding: 8px 10px; background-color: #ecfdf5; border-radius: 6px; width: 47%; vertical-align: top;">
+                            <span style="display: inline-block; font-size: 10px; font-weight: bold; color: #059669; background-color: #d1fae5; padding: 2px 6px; border-radius: 4px; margin-bottom: 5px;">
+                                MODIFICADA
+                            </span>
+                            <div style="font-size: 13px; color: #065f46; font-weight: bold;">
+                                ${change.after}
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        `
+        )
+        .join('');
 }
 
 // Envía correos en paralelo sin bloquear ni romper la operación principal
@@ -279,7 +337,7 @@ export const updateClass = async (req: Request, res: Response): Promise<void> =>
         }
 
         if (keyChanges.length > 0) {
-            const summaryText = `Actualización en "${updatedClass.title}": ${keyChanges.join(' | ')}`;
+            const summaryText = `Actualización en "${updatedClass.title}": ${keyChanges.map((c) => c.summaryText).join(' | ')}`;
 
             const activeBookings = await Booking.find({
                 gymClass: id,
@@ -292,17 +350,17 @@ export const updateClass = async (req: Request, res: Response): Promise<void> =>
                     { $set: { classUpdateNotice: summaryText } }
                 );
 
-                const itemsHtml = keyChanges.map((item) => `<li>${item}</li>`).join('');
+                const changesHtml = buildChangesComparisonHtml(keyChanges);
                 const recipients = activeBookings.map((b) => b.user).filter(Boolean);
 
                 await sendNotificationsSafely(
                     recipients,
                     `Cambio en tu clase de Energym: ${updatedClass.title}`,
                     (userName) => `
-                        <h2>¡Hola, ${userName}!</h2>
-                        <p>Se realizaron cambios importantes en la clase <b>${updatedClass.title}</b> que tienes reservada:</p>
-                        <ul>${itemsHtml}</ul>
-                        <p>Revisa tu perfil en Energym para ver los detalles actualizados de tu reserva.</p>
+                        <h2 style="margin: 0 0 12px; color: #111827; font-size: 20px;">¡Hola, ${userName}!</h2>
+                        <p style="margin: 0 0 16px;">Se realizaron actualizaciones importantes en la clase <strong>${updatedClass.title}</strong> que tienes reservada. Aquí tienes el detalle:</p>
+                        ${changesHtml}
+                        <p style="margin: 16px 0 0; font-size: 14px; color: #4b5563;">Revisa tu perfil en Energym para confirmar los detalles actualizados de tu reserva.</p>
                     `
                 );
             }
@@ -358,9 +416,14 @@ export const deleteClass = async (req: Request, res: Response): Promise<void> =>
                 recipients,
                 `Clase cancelada en Energym: ${targetClass.title}`,
                 (userName) => `
-                    <h2>¡Hola, ${userName}!</h2>
-                    <p>Lamentamos informarte que la clase <b>${targetClass.title}</b> (${formatDateTime(targetClass.startTime)}) ha sido <b>cancelada</b>.</p>
-                    <p>Tu reserva ha sido marcada como <b>Cancelado</b>. Si realizaste un pago, por favor comunícate con administración para gestionar tu reembolso o reprogramación.</p>
+                    <h2 style="margin: 0 0 12px; color: #111827; font-size: 20px;">¡Hola, ${userName}!</h2>
+                    <p style="margin: 0 0 16px;">Lamentamos informarte que la siguiente clase ha sido cancelada por administración:</p>
+                    <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 16px 18px; border-radius: 8px; margin: 16px 0;">
+                        <p style="margin: 0 0 8px;"><strong>Clase:</strong> ${targetClass.title}</p>
+                        <p style="margin: 0 0 8px;"><strong>Fecha y hora:</strong> ${formatDateTime(targetClass.startTime)}</p>
+                        <p style="margin: 0;"><strong>Estado de tu reserva:</strong> <span style="color: #dc2626; font-weight: bold;">Cancelado</span></p>
+                    </div>
+                    <p style="margin: 16px 0 0; font-size: 14px; color: #4b5563;">Si realizaste un pago, por favor comunícate con administración para gestionar tu reembolso o reprogramación.</p>
                 `
             );
         }
